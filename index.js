@@ -29,8 +29,11 @@ const addUser = (userId, socketId) => {
    if(!alreadyExist) {
       users.push({
          userId,
-         socketId
+         socketId,
+         isInChat: true,
       });
+   } else {
+      connectToChat(userId, socketId)
    }
 }
 
@@ -38,6 +41,37 @@ const removeUser = (socketId) => {
    users = users.filter(user => user.socketId !== socketId);
 }
 
+// Actualiza el socket del usuario, como entro en el chat
+// tiene un nuevo socketId
+const connectToChat = (userId, socketId ) => {
+   users = users.map(user => {
+      if(user.userId === userId) {
+         return {
+            ...user,
+            isInChat: true,
+            socketId
+         }
+      }
+
+      return user;
+   })
+}
+
+// Esta funcion toma el userId y como solo salio del chat, no elimina el socket
+// solo indica que ya no esta en el chat
+const disconnectFromChat = (userId) => {
+   users = users.map(user => {
+      if(user.userId === userId) {
+         return {
+            ...user,
+            isInChat: false
+         }
+      }
+
+      return user;
+   })
+
+}
 
 const getUser = (userId) => {
    return users.find(user => user.userId === userId);
@@ -47,27 +81,38 @@ const getUser = (userId) => {
 io.on('connection', (socket) => {
    // Conexion
    console.log('User connected');
-   console.log(users)
 
 
    // Agregar usuario
    socket.on("addUser", (userId) => {
       addUser(userId, socket.id);
+      console.log(users)
+      
+      
       io.emit("getUsers", users);
+
+
    });
 
    // Disconnect
    socket.on("disconnect", (userId) => {
       console.log("A user disconected");
-      removeUser(socket.id)
+      removeUser(socket.id);
+      console.log(users)
+
+   })
+
+
+   socket.on("disconnectFromChat", ({ userId }) => {
+      disconnectFromChat(userId)
    })
 
    // Send and get message
    socket.on("sendMessage", ({ senderId, receiverId, text }) => {
       const user = getUser(receiverId);
-
-      if(user) {
-         console.log("emit")
+      
+      if(user && user.isInChat) {
+         console.log("Mande mensaje a: ", user)
          io.to(user.socketId).emit("getMessage", {
             senderId,
             text
